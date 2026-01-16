@@ -1,3 +1,7 @@
+# this script borrows almost verbatim from
+# https://github.com/iovisor/bcc/blob/master/INSTALL.md#ubuntu---source but
+# with some better error reporting.
+
 fatal() {
   echo "BCC installation failed at the following step: $1"
   exit 1
