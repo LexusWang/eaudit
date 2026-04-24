@@ -2,6 +2,8 @@
 # It would be great if you can compile without root privilege, but the
 # toolchain is so broken that it dumps a ton of errors on correct programs.
 
+cd "$(dirname "$(readlink -f "$0")")"
+
 wrapper=sudo
 if (( `id -u` == 0 )); then
     wrapper=
