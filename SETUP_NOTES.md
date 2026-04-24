@@ -1,5 +1,16 @@
 # eAudit setup notes
 
+## 0. Platform notes (Ubuntu 22.04, kernel 6.8)
+
+This branch was tested on:
+
+- Ubuntu 22.04.4 LTS
+- Kernel `6.8.0-107-generic` (HWE — newer than the 22.04 default 5.15)
+
+Two kernel/distro-specific fixes are included beyond the stock INSTALL.md:
+- BCC must be built from source (distro package is too old)
+- `eauditk.c` requires a `min()` macro patch for kernel 6.8 (see 1c below)
+
 ## 1. Install
 
 ### 1a. Build eAudit itself
@@ -47,6 +58,24 @@ Verify:
 python3 -c "import bcc; print(bcc.__file__)"
 # -> /usr/lib/python3/dist-packages/bcc-0.0.0+<hash>-py3.10.egg/bcc/__init__.py
 ```
+
+### 1c. Kernel 6.8 `min()` macro fix
+
+Kernel 6.8 changed `min()` (in `include/linux/minmax.h`) to call a non-static
+compile-time helper, which BPF rejects at load time:
+
+```
+error: cannot call non-static helper function
+   int n = bpf_probe_read_str(&b->d[*idx], min(MAX_SLEN, BUFSIZE-(*idx)-3), fn);
+```
+
+This patch is already applied in `eauditk.c` on this branch: two call sites replaced
+with inline ternaries:
+
+- `eauditk.c` `add_string()` — `min(MAX_SLEN, ...)` → explicit ternary
+- `eauditk.c` `add_data()` — `min(MAX_DLEN, dlen)` → explicit ternary
+
+If you re-sync from upstream, reapply these two edits.
 
 ## 2. Run capture (`ecapd`)
 
@@ -124,7 +153,7 @@ Pid 37806: Read 16422B in 187 msgs, avg msglen 87, wrote 16431B
 ```
 
 The teardown-progress ticks are normal: BCC's kprobe detach takes
-10–30s on some kernels *after* the capture file has already been safely
+10–30s on kernel 6.x *after* the capture file has already been safely
 written. Exit code is `0` as long as the capture file has bytes.
 
 ### 2b. Passing ecapd tuning flags through `run_timed.py`
@@ -235,6 +264,7 @@ pid=11403: connect(fd=7, endpoint=IP4:93.184.216.34:443) ret=0
 |---|---|---|
 | `ModuleNotFoundError: No module named 'bcc'` | BCC not installed / installed for wrong Python | rebuild bindings step in 1b |
 | `no member named 'atomic_increment'` | Distro BCC is too old | Uninstall `python3-bpfcc`, build BCC from source |
+| `cannot call non-static helper function` near `min(...)` | Kernel 6.x `min()` macro | Already patched in this branch; re-sync `eauditk.c` if you merged from upstream |
 | `ecapd` exits immediately, capture file empty | Not root, or BPF load failure | Run via `sudo`; check ecapd log for the real error |
 | `<KiB> (N lost)` with N>0 | Ring buffer overrun | Raise `-r` (ring buffer) / `-b` (per-CPU buffer) |
 | `python3: can't open file '.../eauditd.py'` | Called ecapd from wrong directory | Fixed in this repo; pull latest `ecapd` |

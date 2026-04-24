@@ -127,7 +127,8 @@ add_long3(struct buf* b, long a1, long a2, long a3, u16* idx, u16 hdr) {
 static inline void
 add_string(struct buf* b, const char* fn, u16 *idx) {
    *idx += 1; // Space for the length byte.
-   int n = bpf_probe_read_str(&b->d[*idx], min(MAX_SLEN, BUFSIZE-(*idx)-3), fn);
+   int __m_a = MAX_SLEN, __m_b = BUFSIZE-(*idx)-3;
+   int n = bpf_probe_read_str(&b->d[*idx], (__m_a < __m_b ? __m_a : __m_b), fn);
    // n = max(n, 1);
 
    if (n < 0) {
@@ -189,7 +190,7 @@ add_str_array0_16(struct buf* b, const char* const *argv, u16 *idx) {
 static inline int
 add_data(struct buf* b, u8* data, int dlen, u16 *idx) {
    int fail=0;
-   u8 len = min(MAX_DLEN, dlen);
+   u8 len = (MAX_DLEN < dlen ? MAX_DLEN : dlen);
    if (0 < len && len <= BUFSIZE-(*idx)-3) {
       fail = bpf_probe_read(&b->d[1+*idx], len, data);
       if (fail) {
